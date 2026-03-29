@@ -42,7 +42,7 @@ echo "已部署: frontend/ -> $DEPLOY_DIR/frontend/"
 # ---- 拷贝管理脚本 ----
 cp "$PROJECT_DIR/scripts/start.sh" \
    "$PROJECT_DIR/scripts/stop.sh"  \
-   "$PROJECT_DIR/scripts/init.sh"  \
+   "$PROJECT_DIR/scripts/init.sql" \
    "$DEPLOY_DIR/scripts/"
 chmod +x "$DEPLOY_DIR/scripts/"*.sh
 echo "已部署: scripts/ -> $DEPLOY_DIR/scripts/"
