@@ -203,7 +203,7 @@ url-shortener/
 ├── frontend/
 │   └── index.html          # 前端单页应用（SPA）
 ├── scripts/
-│   ├── init.sh             # 首次部署初始化脚本（检查依赖、创建目录）
+│   ├── init.sql            # 数据库初始化 SQL
 │   ├── start.sh            # 启动守护进程
 │   └── stop.sh             # 停止守护进程
 └── src/
@@ -312,7 +312,7 @@ DEPLOY_DIR=/home/opt
 mkdir -p $DEPLOY_DIR/frontend $DEPLOY_DIR/scripts
 cp build/bin/url_shortener $DEPLOY_DIR/
 cp -rT frontend $DEPLOY_DIR/frontend
-cp scripts/start.sh scripts/stop.sh scripts/init.sh $DEPLOY_DIR/scripts/
+cp scripts/start.sh scripts/stop.sh scripts/init.sql $DEPLOY_DIR/scripts/
 chmod +x $DEPLOY_DIR/scripts/*.sh
 cp config.ini $DEPLOY_DIR/   # 初次部署
 ```
@@ -368,15 +368,15 @@ level = info                ; debug / info / warn / error
 
 | 脚本 | 用途 |
 |------|------|
-| `scripts/init.sh` | **首次部署**前执行，检查 MySQL/Redis 依赖、创建目录结构 |
+| `scripts/init.sql` | 数据库初始化 SQL，首次部署时导入 MySQL |
 | `scripts/start.sh` | 启动守护进程，检测重复运行，等待 PID 文件确认启动成功 |
 | `scripts/stop.sh` | 发送 SIGTERM 优雅退出，超时后 SIGKILL 强制终止 |
 
 ```bash
 cd /home/opt
 
-# 首次部署：初始化环境
-bash scripts/init.sh
+# 首次部署：初始化数据库
+mysql -u root -p < scripts/init.sql
 
 # 编辑配置文件（数据库、端口等）
 vim config.ini
