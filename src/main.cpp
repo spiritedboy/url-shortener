@@ -38,8 +38,8 @@ static void daemonize() {
         exit(EXIT_FAILURE);
     }
     if (pid > 0) {
-        // 父进程退出
-        exit(EXIT_SUCCESS);
+        // 父进程退出（用 _exit 跳过 C++ 析构函数和 atexit 处理器）
+        _exit(EXIT_SUCCESS);
     }
 
     // 创建新会话，成为会话领导，脱离控制终端
@@ -55,8 +55,8 @@ static void daemonize() {
         exit(EXIT_FAILURE);
     }
     if (pid > 0) {
-        // 中间进程退出
-        exit(EXIT_SUCCESS);
+        // 中间进程退出（用 _exit 跳过 C++ 析构函数和 atexit 处理器）
+        _exit(EXIT_SUCCESS);
     }
 
     // 设置文件创建掩码，确保守护进程创建的文件有正确权限

@@ -87,6 +87,10 @@ void* Server::loopThreadEntry(void* arg) {
 void Server::start() {
     LOG_INFO("服务器启动中...");
 
+    // 确保启动前 running_ 为 true（stop() 可能已经将其清为 false）
+    adminLoop_->reset();
+    redirectLoop_->reset();
+
     // 在独立线程中运行 Redirect EventLoop
     LoopArg* arg1 = new LoopArg{ redirectLoop_.get() };
     if (pthread_create(&redirectThread_, nullptr, loopThreadEntry, arg1) != 0) {
@@ -113,14 +117,14 @@ void Server::stop() {
     if (adminLoop_)    adminLoop_->stop();
     if (redirectLoop_) redirectLoop_->stop();
 
-    // 等待两个 EventLoop 线程退出
-    if (adminThreadCreated_) {
-        pthread_join(adminThread_, nullptr);
-        adminThreadCreated_ = false;
-    }
+    // 先 join redirect，再 join admin（都是短超时的 epoll_wait，很快退出）
     if (redirectThreadCreated_) {
         pthread_join(redirectThread_, nullptr);
         redirectThreadCreated_ = false;
+    }
+    if (adminThreadCreated_) {
+        pthread_join(adminThread_, nullptr);
+        adminThreadCreated_ = false;
     }
 
     // 停止线程池

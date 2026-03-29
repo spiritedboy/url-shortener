@@ -36,6 +36,7 @@ public:
 
     // 停止事件循环
     void stop();
+    void reset() { running_ = true; }  // 重新启动前调用，重置 running_ 标志
 
     // 重新注册连接的 EPOLLIN 事件（连接处理完毕且保持连接时调用）
     // 线程安全：可从工作线程调用
@@ -51,7 +52,7 @@ private:
 
     int            epollFd_;   // epoll 实例描述符
     int            serverFd_;  // 监听 socket
-    std::atomic<bool> running_{false};
+    std::atomic<bool> running_{true};
 
     ThreadPool* threadPool_;
     std::function<void(std::shared_ptr<Connection>)> handler_;

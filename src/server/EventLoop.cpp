@@ -111,7 +111,6 @@ void EventLoop::acceptAll() {
 
 // 主事件循环（阻塞运行）
 void EventLoop::run() {
-    running_ = true;
     struct epoll_event events[MAX_EVENTS];
 
     LOG_INFO(std::string("EventLoop 开始运行，类型: ") + (isAdmin_ ? "Admin" : "Redirect"));
