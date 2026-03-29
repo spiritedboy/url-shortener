@@ -1,0 +1,128 @@
+name: CI/CD Pipeline
+
+# 每当代码推送到 main 或 master 分支时自动触发
+on:
+  push:
+    branches:
+      - main
+      - master
+
+jobs:
+  build-and-deploy:
+    name: Build & Deploy
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      # ── 1. 拉取代码 ──────────────────────────────────────────────
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      # ── 2. 安装编译依赖 ──────────────────────────────────────────
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y cmake g++ libhiredis-dev libmysqlclient-dev
+
+      # ── 3. 编译项目 ──────────────────────────────────────────────
+      - name: Build with CMake (Release)
+        run: |
+          mkdir -p build
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build -- -j$(nproc)
+
+      # ── 4. 打包部署产物到暂存目录，方便 SCP 传输 ─────────────────
+      - name: Prepare deploy package
+        run: |
+          mkdir -p deploy/frontend
+          cp build/bin/url_shortener deploy/
+          cp config.ini deploy/
+          cp -r frontend/. deploy/frontend/
+
+      # ── 5. 上传构建产物（可在 Actions 页面手动下载）──────────────
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: url_shortener-binary
+          path: build/bin/url_shortener
+
+      # ── 6. 部署到远端服务器 ──────────────────────────────────────
+      #
+      # 使用说明：在 GitHub 仓库的 Settings → Secrets and variables → Actions
+      # 中添加以下三个 Repository secrets：
+      #
+      #   SERVER_HOST     服务器 IP 或域名，例如：192.168.1.100
+      #   SERVER_USER     SSH 登录用户名，例如：ubuntu
+      #   SERVER_PASSWORD SSH 登录密码，例如：MyPassword123
+      #
+      # 部署目录固定为 /opt/url-shortener
+      # 服务通过 systemd 单元 url-shortener.service 管理（见 README）
+      #
+
+      # 6a. 停止旧服务
+      - name: Stop existing service
+        uses: appleboy/ssh-action@v1.2.2
+        with:
+          # ---- 连接参数（从 Secrets 读取，默认占位值见上方说明）----
+          host: ${{ secrets.SERVER_HOST }}         # 默认占位：192.168.1.100
+          username: ${{ secrets.SERVER_USER }}     # 默认占位：ubuntu
+          password: ${{ secrets.SERVER_PASSWORD }} # 默认占位：MyPassword123
+          port: 22
+          script: |
+            set -e
+            sudo mkdir -p /opt/url-shortener/frontend
+            sudo mkdir -p /tmp/url-shortener-deploy
+            # 停止旧服务（若已运行）
+            if systemctl is-active --quiet url-shortener 2>/dev/null; then
+              sudo systemctl stop url-shortener
+            fi
+
+      # 6b. 将打包好的产物上传到服务器临时目录
+      - name: Copy deploy package to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          password: ${{ secrets.SERVER_PASSWORD }}
+          port: 22
+          source: "deploy/"
+          target: /tmp/url-shortener-deploy
+          overwrite: true
+
+      # 6c. 将文件移至部署目录并启动服务
+      - name: Install and start service
+        uses: appleboy/ssh-action@v1.2.2
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          password: ${{ secrets.SERVER_PASSWORD }}
+          port: 22
+          script: |
+            set -e
+            SRC=/tmp/url-shortener-deploy/deploy
+            DEPLOY_DIR=/opt/url-shortener
+
+            # 将临时目录中的文件覆盖到部署目录
+            sudo cp "$SRC/url_shortener" "$DEPLOY_DIR/url_shortener"
+            sudo cp "$SRC/config.ini"    "$DEPLOY_DIR/config.ini"
+            sudo cp -r "$SRC/frontend/." "$DEPLOY_DIR/frontend/"
+            sudo chmod +x "$DEPLOY_DIR/url_shortener"
+
+            # 清理临时目录
+            sudo rm -rf /tmp/url-shortener-deploy
+
+            # 若已配置 systemd 服务则用 systemctl 启动，否则直接后台运行
+            if systemctl list-unit-files | grep -q url-shortener.service; then
+              sudo systemctl daemon-reload
+              sudo systemctl enable url-shortener
+              sudo systemctl start url-shortener
+              echo "Service started via systemd"
+              sudo systemctl status url-shortener --no-pager
+            else
+              # 没有 systemd 单元时，以守护进程模式直接启动（无需 root，端口 8080/8000 > 1024）
+              cd "$DEPLOY_DIR"
+              nohup ./url_shortener -c config.ini > /tmp/url-shortener.log 2>&1 &
+              sleep 2
+              echo "Service started in background"
+            fi
