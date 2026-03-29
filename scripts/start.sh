@@ -1,10 +1,11 @@
 #!/bin/bash
 # 启动 url-shortener 守护进程
+# 脚本位于部署目录的 scripts/ 子目录下，自动定位上级部署目录
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-BINARY="$SCRIPT_DIR/url_shortener"
-CONFIG="$SCRIPT_DIR/config.ini"
-PID_FILE="$SCRIPT_DIR/url-shortener.pid"
+DEPLOY_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+BINARY="$DEPLOY_DIR/url_shortener"
+CONFIG="$DEPLOY_DIR/config.ini"
+PID_FILE="$DEPLOY_DIR/url-shortener.pid"
 
 # 检查可执行文件
 if [ ! -f "$BINARY" ]; then
@@ -30,10 +31,10 @@ if [ -f "$PID_FILE" ]; then
     fi
 fi
 
-# 切换到脚本目录，确保相对路径（日志、前端目录等）解析正确
-cd "$SCRIPT_DIR" || exit 1
+# 切换到部署目录，确保相对路径（日志、前端目录等）解析正确
+cd "$DEPLOY_DIR" || exit 1
 
-# 启动守护进程（默认 daemon 模式，不需要 --no-daemon）
+# 启动守护进程（默认 daemon 模式）
 "$BINARY" -c "$CONFIG"
 
 # 等待进程启动并写入 PID 文件（最多等 3 秒）
@@ -48,5 +49,5 @@ for i in $(seq 1 6); do
     fi
 done
 
-echo "错误：服务启动失败，请检查日志文件"
+echo "错误：服务启动失败，请检查日志文件 $DEPLOY_DIR/url-shortener.log"
 exit 1

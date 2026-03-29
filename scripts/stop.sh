@@ -1,19 +1,19 @@
 #!/bin/bash
 # 停止 url-shortener 守护进程
+# 脚本位于部署目录的 scripts/ 子目录下，自动定位上级部署目录
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-PID_FILE="$SCRIPT_DIR/url-shortener.pid"
+DEPLOY_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+PID_FILE="$DEPLOY_DIR/url-shortener.pid"
 
 if [ ! -f "$PID_FILE" ]; then
     echo "PID 文件不存在，服务可能未运行"
-    # 尝试用进程名查找
-    PID=$(pgrep -x url_shortener)
+    # 兜底：尝试用进程名查找
+    PID=$(pgrep -x url_shortener 2>/dev/null)
     if [ -n "$PID" ]; then
         echo "发现进程 PID=$PID，正在停止..."
         kill -TERM "$PID"
-        exit 0
     fi
-    exit 1
+    exit 0
 fi
 
 PID=$(cat "$PID_FILE")

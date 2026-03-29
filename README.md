@@ -197,10 +197,15 @@ fork() → 父进程退出（脱离前台进程组）
 ```
 url-shortener/
 ├── CMakeLists.txt          # CMake 构建配置
-├── config.ini              # 配置文件
+├── build.sh                # 编译 + 部署一键脚本
+├── config.ini              # 配置文件模板
 ├── README.md               # 本文档
 ├── frontend/
 │   └── index.html          # 前端单页应用（SPA）
+├── scripts/
+│   ├── init.sh             # 首次部署初始化脚本（检查依赖、创建目录）
+│   ├── start.sh            # 启动守护进程
+│   └── stop.sh             # 停止守护进程
 └── src/
     ├── main.cpp             # 入口：守护进程 + 初始化 + 启动
     ├── config/
@@ -266,6 +271,24 @@ sudo apt-get install -y cmake g++ libhiredis-dev libmysqlclient-dev
 
 ## 编译与安装
 
+### 方式一：使用 build.sh（推荐）
+
+```bash
+# 克隆项目
+git clone git@github.com:spiritedboy/url-shortener.git
+cd url-shortener
+
+# 编译并部署到指定目录（默认 /home/opt）
+bash build.sh /home/opt
+```
+
+`build.sh` 会自动完成以下工作：
+1. 运行 CMake 配置和编译
+2. 将可执行文件、前端资源、管理脚本拷贝到部署目录
+3. 首次部署时自动拷贝默认 `config.ini`（已有则不覆盖）
+
+### 方式二：手动编译
+
 ```bash
 # 1. 进入项目根目录
 cd url-shortener
@@ -283,11 +306,15 @@ cmake --build . -- -j$(nproc)
 ls bin/url_shortener
 ```
 
-编译成功后，将以下文件拷贝到部署目录：
+手动将文件拷贝到部署目录：
 ```bash
-cp bin/url_shortener /opt/url-shortener/
-cp ../config.ini     /opt/url-shortener/
-cp -r ../frontend    /opt/url-shortener/
+DEPLOY_DIR=/home/opt
+mkdir -p $DEPLOY_DIR/frontend $DEPLOY_DIR/scripts
+cp build/bin/url_shortener $DEPLOY_DIR/
+cp -rT frontend $DEPLOY_DIR/frontend
+cp scripts/start.sh scripts/stop.sh scripts/init.sh $DEPLOY_DIR/scripts/
+chmod +x $DEPLOY_DIR/scripts/*.sh
+cp config.ini $DEPLOY_DIR/   # 初次部署
 ```
 
 ---
@@ -335,18 +362,41 @@ level = info                ; debug / info / warn / error
 
 ## 运行
 
+### 使用管理脚本（推荐）
+
+部署目录（默认 `/home/opt`）下的 `scripts/` 子目录提供三个脚本：
+
+| 脚本 | 用途 |
+|------|------|
+| `scripts/init.sh` | **首次部署**前执行，检查 MySQL/Redis 依赖、创建目录结构 |
+| `scripts/start.sh` | 启动守护进程，检测重复运行，等待 PID 文件确认启动成功 |
+| `scripts/stop.sh` | 发送 SIGTERM 优雅退出，超时后 SIGKILL 强制终止 |
+
+```bash
+cd /home/opt
+
+# 首次部署：初始化环境
+bash scripts/init.sh
+
+# 编辑配置文件（数据库、端口等）
+vim config.ini
+
+# 启动服务
+bash scripts/start.sh
+
+# 停止服务
+bash scripts/stop.sh
+```
+
+### 直接运行可执行文件
+
 ```bash
 # 以守护进程模式启动（默认）
-cd /opt/url-shortener
+cd /home/opt
 ./url_shortener -c config.ini
 
 # 以前台模式启动（调试）
 ./url_shortener -c config.ini --no-daemon
-
-# 停止服务
-kill -TERM $(cat /var/run/url-shortener.pid)
-# 或
-pkill url_shortener
 ```
 
 **监听 80 端口**（需要 root 权限）：

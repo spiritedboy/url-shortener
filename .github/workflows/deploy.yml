@@ -22,13 +22,7 @@ jobs:
           script: |
             set -e
             cd /home/url-shortener
-            sudo /home/opt/stop.sh || true
+            /home/opt/scripts/stop.sh
             git pull origin master
-            cd build
-            cmake --build . -- -j$(nproc)
-            sudo cp -rT /home/url-shortener/frontend /home/opt/frontend
-            sudo cp bin/url_shortener /home/opt/
-            sudo cp /home/url-shortener/start.sh /home/opt/
-            sudo cp /home/url-shortener/stop.sh /home/opt/
-            sudo chmod +x /home/opt/start.sh /home/opt/stop.sh
-            sudo /home/opt/start.sh
+            sudo bash build.sh /home/opt
+            /home/opt/scripts/start.sh
