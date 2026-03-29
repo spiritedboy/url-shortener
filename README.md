@@ -411,6 +411,9 @@ sudo setcap 'cap_net_bind_service=+ep' ./url_shortener
 
 ### systemd 服务配置（推荐生产环境）
 
+> [!WARNING]
+> 使用 systemd 托管时，必须以 `--no-daemon` 参数前台运行。若使用守护进程模式（默认），程序会 fork 后父进程退出，systemd 误判服务已停止并发送 SIGTERM，导致子进程立即退出。
+
 创建 `/etc/systemd/system/url-shortener.service`：
 
 ```ini
