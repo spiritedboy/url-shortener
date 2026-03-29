@@ -21,6 +21,7 @@
 - [运行](#运行)
 - [API 文档](#api-文档)
 - [前端界面](#前端界面)
+- [压力测试](#压力测试)
 - [常见问题](#常见问题)
 
 ---
@@ -485,6 +486,85 @@ Location: https://www.example.com/very/long/path
 - **复制**：点击表格中的 📋 按钮可一键复制完整短链 URL（兼容非 HTTPS 环境）
 - **删除**：点击"删除"按钮并确认后移除映射，自动刷新当前页
 - **跳转**：点击短码可直接在新标签页打开（验证跳转功能）
+
+---
+
+## 压力测试
+
+### 安装工具
+
+```bash
+# wrk（推荐，支持 Lua 脚本定制请求）
+sudo apt-get install wrk
+
+# 或 ab（Apache Bench，简单直接）
+sudo apt-get install apache2-utils
+```
+
+### 压测重定向接口（核心热路径）
+
+先创建一条短链，获取 code：
+```bash
+curl -s http://localhost:8080/api/links \
+  -X POST -H "Content-Type: application/json" \
+  -d '{"url":"https://www.github.com"}' | grep -o '"code":"[^"]*"'
+```
+
+假设拿到 `abc123`，压测跳转（8000 端口）：
+```bash
+# wrk：12 线程 / 200 并发 / 持续 30 秒
+wrk -t12 -c200 -d30s http://localhost:8000/abc123
+
+# ab：10000 次请求 / 200 并发
+ab -n 10000 -c 200 http://localhost:8000/abc123
+```
+
+### 压测创建短链接口（写入路径）
+
+创建 Lua 脚本让每次提交不同 URL：
+```lua
+-- post.lua
+wrk.method = "POST"
+wrk.headers["Content-Type"] = "application/json"
+counter = 0
+function request()
+  counter = counter + 1
+  wrk.body = '{"url":"https://www.example.com/page/' .. counter .. '"}'
+  return wrk.format()
+end
+```
+
+```bash
+wrk -t4 -c50 -d30s -s post.lua http://localhost:8080/api/links
+```
+
+### 压测分页查询接口
+
+```bash
+wrk -t8 -c100 -d30s "http://localhost:8080/api/links?page=1&page_size=20"
+```
+
+### 结果指标说明
+
+| 指标 | 说明 |
+|------|------|
+| `Req/Sec` | 每秒请求数（QPS） |
+| `Latency avg` | 平均响应延迟 |
+| `Latency 99%` | P99 延迟（99% 请求在此时间内完成） |
+| `Non-2xx` | 非成功响应数，不为 0 则说明有错误 |
+
+### 压测时监控服务状态
+
+```bash
+# 实时 CPU / 内存占用
+watch -n1 'ps aux | grep url_shortener'
+
+# TCP 连接数统计
+watch -n1 'ss -s'
+
+# 实时日志
+tail -F ./url-shortener.log
+```
 
 ---
 
