@@ -1,0 +1,810 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>短链接转换平台</title>
+  <style>
+    /* ===== 全局重置与基础样式 ===== */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg-from:   #0f0c29;
+      --bg-mid:    #302b63;
+      --bg-to:     #24243e;
+      --card-bg:   rgba(255,255,255,0.07);
+      --card-border:rgba(255,255,255,0.12);
+      --accent:    #7c6af7;
+      --accent-2:  #a78bfa;
+      --danger:    #f87171;
+      --success:   #34d399;
+      --text:      #e2e8f0;
+      --text-muted:#94a3b8;
+      --input-bg:  rgba(255,255,255,0.06);
+      --radius:    14px;
+      --shadow:    0 8px 32px rgba(0,0,0,0.45);
+    }
+
+    html { font-size: 16px; overflow-x: hidden; }
+
+    body {
+      min-height: 100vh;
+      font-family: 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', sans-serif;
+      background: linear-gradient(135deg, var(--bg-from) 0%, var(--bg-mid) 50%, var(--bg-to) 100%);
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 2rem 1rem 4rem;
+      overflow-x: hidden;
+    }
+
+    /* ===== 文字标题 ===== */
+    .hero {
+      text-align: center;
+      margin-bottom: 2.5rem;
+      animation: fadeInDown 0.6s ease both;
+    }
+    .hero h1 {
+      font-size: clamp(2rem, 5vw, 3rem);
+      font-weight: 800;
+      background: linear-gradient(90deg, #a78bfa, #60a5fa, #34d399);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      letter-spacing: -0.5px;
+    }
+    .hero p {
+      margin-top: 0.6rem;
+      color: var(--text-muted);
+      font-size: 1.05rem;
+    }
+
+    /* ===== 卡片通用样式 ===== */
+    .card {
+      width: 100%;
+      max-width: 780px;
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      box-shadow: var(--shadow);
+      padding: 2rem;
+      margin-bottom: 1.8rem;
+      animation: fadeInUp 0.6s ease both;
+    }
+    .card h2 {
+      font-size: 1.15rem;
+      font-weight: 600;
+      color: var(--accent-2);
+      margin-bottom: 1.2rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .card h2 .icon { font-size: 1.3rem; }
+
+    /* ===== 创建短链表单 ===== */
+    .form-row {
+      display: flex;
+      gap: 0.8rem;
+      flex-wrap: wrap;
+    }
+    .form-row input {
+      flex: 1;
+      min-width: 220px;
+      background: var(--input-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 10px;
+      padding: 0.75rem 1rem;
+      color: var(--text);
+      font-size: 0.97rem;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .form-row input::placeholder { color: var(--text-muted); }
+    .form-row input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(124,106,247,0.25);
+    }
+
+    /* ===== 按钮 ===== */
+    .btn {
+      border: none;
+      border-radius: 10px;
+      padding: 0.75rem 1.4rem;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.15s, opacity 0.2s, box-shadow 0.2s;
+      white-space: nowrap;
+    }
+    .btn:active { transform: scale(0.97); }
+    .btn:disabled { opacity: 0.55; cursor: not-allowed; }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent), #5b4de0);
+      color: #fff;
+      box-shadow: 0 4px 15px rgba(124,106,247,0.4);
+    }
+    .btn-primary:hover:not(:disabled) {
+      box-shadow: 0 6px 20px rgba(124,106,247,0.6);
+      opacity: 0.92;
+    }
+
+    .btn-danger {
+      background: rgba(248,113,113,0.15);
+      color: var(--danger);
+      border: 1px solid rgba(248,113,113,0.3);
+    }
+    .btn-danger:hover:not(:disabled) {
+      background: rgba(248,113,113,0.28);
+    }
+
+    .btn-icon {
+      background: rgba(255,255,255,0.08);
+      color: var(--text-muted);
+      border: 1px solid var(--card-border);
+      padding: 0.5rem 0.75rem;
+      font-size: 0.85rem;
+    }
+    .btn-icon:hover { color: var(--text); background: rgba(255,255,255,0.13); }
+
+    .btn-refresh {
+      margin-left: auto;
+      background: transparent;
+      border: 1px solid var(--card-border);
+      color: var(--text-muted);
+      padding: 0.4rem 0.9rem;
+      font-size: 0.85rem;
+      border-radius: 8px;
+    }
+    .btn-refresh:hover { color: var(--text); border-color: var(--accent); }
+
+    /* ===== 结果展示 ===== */
+    #result-box {
+      display: none;
+      margin-top: 1.2rem;
+      background: rgba(52,211,153,0.08);
+      border: 1px solid rgba(52,211,153,0.3);
+      border-radius: 10px;
+      padding: 1rem 1.2rem;
+      animation: fadeIn 0.3s ease;
+    }
+    #result-box .label { font-size: 0.8rem; color: var(--success); margin-bottom: 0.3rem; }
+    #result-box .result-row {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+    }
+    #result-box a {
+      color: var(--accent-2);
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 1.05rem;
+      word-break: break-all;
+    }
+    #result-box a:hover { text-decoration: underline; }
+
+    /* ===== 链接列表 ===== */
+    .list-header {
+      display: flex;
+      align-items: center;
+      margin-bottom: 1rem;
+    }
+
+    .search-input {
+      background: var(--input-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 0.45rem 0.85rem;
+      color: var(--text);
+      font-size: 0.9rem;
+      outline: none;
+      width: 220px;
+      transition: border-color 0.2s;
+    }
+    .search-input:focus { border-color: var(--accent); }
+    .search-input::placeholder { color: var(--text-muted); }
+
+    .table-wrapper {
+      overflow-x: hidden;
+      border-radius: 10px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.93rem;
+      table-layout: fixed;
+    }
+    thead th {
+      text-align: left;
+      padding: 0.75rem 1rem;
+      color: var(--text-muted);
+      font-weight: 500;
+      font-size: 0.82rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      border-bottom: 1px solid var(--card-border);
+    }
+    tbody tr {
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+      transition: background 0.15s;
+    }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: rgba(255,255,255,0.04); }
+    tbody td {
+      padding: 0.8rem 1rem;
+      vertical-align: middle;
+    }
+
+    /* 列宽分配 */
+    thead th:nth-child(1) { width: 100px; }   /* 短码 */
+    thead th:nth-child(2) { width: 30%; }      /* 跳转地址 */
+    thead th:nth-child(3) { width: auto; }     /* 原始 URL */
+    thead th:nth-child(4) { width: 120px; }   /* 操作 */
+
+    /* 跳转地址列截断 */
+    .td-short-url {
+      max-width: 0;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+    .td-short-url a {
+      color: var(--accent-2);
+      font-size: 0.85rem;
+      text-decoration: none;
+    }
+    .td-short-url a:hover { text-decoration: underline; }
+
+    /* 短码列 */
+    .td-code a {
+      color: var(--accent-2);
+      font-weight: 700;
+      font-family: 'Courier New', monospace;
+      font-size: 0.97rem;
+      text-decoration: none;
+      display: inline-block;
+      background: rgba(124,106,247,0.15);
+      border: 1px solid rgba(124,106,247,0.25);
+      border-radius: 6px;
+      padding: 0.15rem 0.6rem;
+      transition: background 0.2s;
+    }
+    .td-code a:hover { background: rgba(124,106,247,0.3); }
+
+    /* 长 URL 列 */
+    .td-url {
+      max-width: 300px;
+    }
+    .td-url span {
+      display: block;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      color: var(--text-muted);
+      font-size: 0.88rem;
+    }
+    .td-url span:hover { color: var(--text); }
+
+    /* 操作列 */
+    .td-actions {
+      display: flex;
+      gap: 0.5rem;
+      justify-content: flex-end;
+      white-space: nowrap;
+    }
+
+    /* 空状态 */
+    .empty-state {
+      text-align: center;
+      padding: 2.5rem 1rem;
+      color: var(--text-muted);
+    }
+    .empty-state .empty-icon { font-size: 2.5rem; margin-bottom: 0.6rem; }
+    .empty-state p { font-size: 0.95rem; }
+
+    /* 加载状态 */
+    .loading-row td {
+      text-align: center;
+      padding: 2rem;
+      color: var(--text-muted);
+    }
+
+    .spinner {
+      display: inline-block;
+      width: 18px;
+      height: 18px;
+      border: 2px solid rgba(255,255,255,0.2);
+      border-top-color: var(--accent-2);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      vertical-align: middle;
+      margin-right: 0.4rem;
+    }
+
+    /* 统计条 */
+    .stats-bar {
+      display: flex;
+      gap: 1.5rem;
+      margin-bottom: 1rem;
+      flex-wrap: wrap;
+    }
+    .stat-item {
+      display: flex;
+      flex-direction: column;
+    }
+    .stat-label { font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; }
+    .stat-value { font-size: 1.4rem; font-weight: 700; color: var(--accent-2); }
+
+    /* ===== Toast 通知 ===== */
+    #toast-container {
+      position: fixed;
+      bottom: 2rem;
+      right: 2rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.6rem;
+      z-index: 9999;
+    }
+    .toast {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      padding: 0.8rem 1.2rem;
+      border-radius: 10px;
+      font-size: 0.93rem;
+      font-weight: 500;
+      backdrop-filter: blur(12px);
+      box-shadow: var(--shadow);
+      animation: toastIn 0.35s cubic-bezier(0.34,1.56,0.64,1) both;
+      max-width: 340px;
+    }
+    .toast.success { background: rgba(52,211,153,0.18); border: 1px solid rgba(52,211,153,0.35); color: var(--success); }
+    .toast.error   { background: rgba(248,113,113,0.18); border: 1px solid rgba(248,113,113,0.35); color: var(--danger); }
+    .toast.info    { background: rgba(124,106,247,0.18); border: 1px solid rgba(124,106,247,0.35); color: var(--accent-2); }
+    .toast.removing { animation: toastOut 0.25s ease forwards; }
+
+    /* ===== 动画 ===== */
+    @keyframes fadeInDown { from { opacity:0; transform:translateY(-20px);} to { opacity:1; transform:none; }}
+    @keyframes fadeInUp   { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:none; }}
+    @keyframes fadeIn     { from { opacity:0; } to { opacity:1; } }
+    @keyframes spin       { to { transform: rotate(360deg); } }
+    @keyframes toastIn    { from { opacity:0; transform:translateX(60px); } to { opacity:1; transform:none; } }
+    @keyframes toastOut   { to { opacity:0; transform:translateX(60px); } }
+
+    /* ===== 响应式 ===== */
+    @media (max-width: 600px) {
+      .card { padding: 1.4rem; }
+      .td-url { display: none; }
+      .td-actions { flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- 标题区域 -->
+<div class="hero">
+  <h1>⚡ 短链接转换平台</h1>
+  <p>简洁、高效的短链接管理系统，支持即时跳转与统一管理</p>
+</div>
+
+<!-- 创建短链卡片 -->
+<div class="card" style="animation-delay:0.05s">
+  <h2><span class="icon">✂️</span>创建短链接</h2>
+  <div class="form-row">
+    <input id="url-input"
+           type="url"
+           placeholder="请输入完整 URL，例如: https://www.example.com/very/long/path"
+           autocomplete="off" />
+    <button class="btn btn-primary" id="shorten-btn" onclick="createLink()">
+      生成短链
+    </button>
+  </div>
+  <div id="result-box">
+    <div class="label">✅ 短链生成成功</div>
+    <div class="result-row">
+      <a id="result-link" href="#" target="_blank">--</a>
+      <button class="btn btn-icon" onclick="copyResult()" title="复制到剪贴板">📋 复制</button>
+    </div>
+  </div>
+</div>
+
+<!-- 链接列表卡片 -->
+<div class="card" style="animation-delay:0.15s">
+  <div class="list-header">
+    <h2 style="margin-bottom:0"><span class="icon">📋</span>已有短链接</h2>
+    <input class="search-input" id="search-input" type="text"
+           placeholder="🔍 搜索..."
+           oninput="filterTable()"
+           style="margin-left:auto;margin-right:0.6rem" />
+    <button class="btn btn-refresh" onclick="loadLinks()">🔄 刷新</button>
+  </div>
+
+  <!-- 统计条 -->
+  <div class="stats-bar" id="stats-bar">
+    <div class="stat-item">
+      <span class="stat-label">总数量</span>
+      <span class="stat-value" id="stat-total">–</span>
+    </div>
+  </div>
+
+  <div class="table-wrapper">
+    <table id="links-table">
+      <thead>
+        <tr>
+          <th>短码</th>
+          <th>跳转地址</th>
+          <th class="td-url" style="min-width:180px">原始长 URL</th>
+          <th style="text-align:right">操作</th>
+        </tr>
+      </thead>
+      <tbody id="links-body">
+        <tr class="loading-row">
+          <td colspan="4"><span class="spinner"></span>加载中...</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- 分页控件 -->
+  <div id="pagination" style="display:none;margin-top:1rem;display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;"></div>
+</div>
+
+<!-- Toast 容器 -->
+<div id="toast-container"></div>
+
+<script>
+// ============================================================
+//  配置（与 config.ini 中 admin_port / redirect_port 一致）
+// ============================================================
+const API_BASE = '';   // 同源调用（相对路径）
+
+// 跳转服务的基础 URL，从 /api/config 获取后填入
+// 格式示例：http://172.26.95.199:8000
+let redirectBase = '';
+
+function buildShortUrl(code) {
+  return `${redirectBase}/${code}`;
+}
+
+// ============================================================
+//  状态
+// ============================================================
+let allLinks  = [];   // 当前页数据
+// 分页状态
+let curPage   = 1;
+const PAGE_SIZE = 20;
+let totalCount  = 0;
+
+// ============================================================
+//  API 调用封装
+// ============================================================
+async function apiFetch(path, options = {}) {
+  const resp = await fetch(API_BASE + path, {
+    headers: { 'Content-Type': 'application/json', ...options.headers },
+    ...options,
+  });
+  return resp.json();
+}
+
+// ============================================================
+//  创建短链
+// ============================================================
+async function createLink() {
+  const input = document.getElementById('url-input');
+  const btn   = document.getElementById('shorten-btn');
+  const url   = input.value.trim();
+
+  if (!url) { showToast('请输入 URL', 'error'); return; }
+  if (!/^https?:\/\//i.test(url)) {
+    showToast('URL 必须以 http:// 或 https:// 开头', 'error'); return;
+  }
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>生成中...';
+
+  try {
+    const data = await apiFetch('/api/links', {
+      method: 'POST',
+      body: JSON.stringify({ url }),
+    });
+
+    if (data.success) {
+      const code     = data.data.code;
+      const shortUrl = buildShortUrl(code);
+
+      // 显示结果
+      const resultBox  = document.getElementById('result-box');
+      const resultLink = document.getElementById('result-link');
+      resultLink.href        = shortUrl;
+      resultLink.textContent = shortUrl;
+      resultBox.style.display = 'block';
+
+      showToast('短链创建成功: ' + code, 'success');
+      loadLinks();  // 刷新列表
+    } else {
+      showToast(data.message || '创建失败', 'error');
+    }
+  } catch (e) {
+    showToast('网络请求失败: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '生成短链';
+  }
+}
+
+// 回车触发创建
+document.getElementById('url-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') createLink();
+});
+
+// ============================================================
+//  复制短链到剪贴板
+// ============================================================
+async function copyResult() {
+  const link = document.getElementById('result-link').textContent;
+  try {
+    await navigator.clipboard.writeText(link);
+    showToast('已复制到剪贴板', 'info');
+  } catch {
+    // 降级：用旧式 execCommand
+    const ta = document.createElement('textarea');
+    ta.value = link;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    showToast('已复制', 'info');
+  }
+}
+
+async function copyCode(code) {
+  const url = buildShortUrl(code);
+  try {
+    await navigator.clipboard.writeText(url);
+    showToast('已复制: ' + url, 'info');
+  } catch {
+    // 降级：用旧式 execCommand
+    const ta = document.createElement('textarea');
+    ta.value = url;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    showToast('已复制: ' + url, 'info');
+  }
+}
+
+// ============================================================
+//  加载链接列表（分页）
+// ============================================================
+async function loadLinks(page) {
+  if (page !== undefined) curPage = page;
+  const tbody = document.getElementById('links-body');
+  tbody.innerHTML = `<tr class="loading-row"><td colspan="4"><span class="spinner"></span>加载中...</td></tr>`;
+
+  try {
+    const data = await apiFetch(`/api/links?page=${curPage}&page_size=${PAGE_SIZE}`);
+    if (data.success) {
+      allLinks   = data.data || [];
+      totalCount = data.total || 0;
+      renderTable(allLinks);
+      document.getElementById('stat-total').textContent = totalCount;
+      renderPagination(totalCount);
+    } else {
+      tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;color:var(--danger);padding:2rem">加载失败: ${escHtml(data.message || '')}</td></tr>`;
+    }
+  } catch (e) {
+    tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;color:var(--danger);padding:2rem">网络错误: ${escHtml(e.message)}</td></tr>`;
+  }
+}
+
+// ============================================================
+//  分页控件渲染
+// ============================================================
+function renderPagination(total) {
+  const container = document.getElementById('pagination');
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
+  if (totalPages <= 1) {
+    container.style.display = 'none';
+    return;
+  }
+  container.style.display = 'flex';
+
+  // 计算展示的页码范围（当前页前后各 2 页）
+  const delta = 2;
+  const pages = [];
+  for (let p = 1; p <= totalPages; p++) {
+    if (p === 1 || p === totalPages ||
+        (p >= curPage - delta && p <= curPage + delta)) {
+      pages.push(p);
+    }
+  }
+
+  const btnStyle = (active) => {
+    const base = 'border:1px solid var(--card-border);border-radius:8px;padding:0.35rem 0.7rem;font-size:0.85rem;cursor:pointer;transition:background 0.15s;';
+    return active
+      ? base + 'background:var(--accent);color:#fff;border-color:var(--accent);'
+      : base + 'background:rgba(255,255,255,0.06);color:var(--text-muted);';
+  };
+
+  let html = '';
+  // 上一页
+  html += `<button style="${btnStyle(false)}" ${curPage===1?'disabled':''} onclick="loadLinks(${curPage-1})">&#8592;</button>`;
+
+  let prev = null;
+  for (const p of pages) {
+    if (prev !== null && p - prev > 1) {
+      html += `<span style="color:var(--text-muted);padding:0 0.3rem;">…</span>`;
+    }
+    html += `<button style="${btnStyle(p===curPage)}" onclick="loadLinks(${p})">${p}</button>`;
+    prev = p;
+  }
+
+  // 下一页
+  html += `<button style="${btnStyle(false)}" ${curPage===totalPages?'disabled':''} onclick="loadLinks(${curPage+1})">&#8594;</button>`;
+  // 页码信息
+  html += `<span style="margin-left:0.5rem;font-size:0.82rem;color:var(--text-muted);">第 ${curPage}/${totalPages} 页</span>`;
+
+  container.innerHTML = html;
+}
+
+// ============================================================
+//  渲染链接表格
+// ============================================================
+function renderTable(links) {
+  const tbody = document.getElementById('links-body');
+
+  if (!links || links.length === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="4">
+          <div class="empty-state">
+            <div class="empty-icon">🔗</div>
+            <p>暂无短链接，快来创建第一个吧！</p>
+          </div>
+        </td>
+      </tr>`;
+    return;
+  }
+
+  tbody.innerHTML = links.map(item => {
+    const code     = item.code;
+    const origUrl  = item.url;
+    const shortUrl = buildShortUrl(code);
+
+    // 显示截断的原始 URL
+    const displayUrl = origUrl.length > 60 ? origUrl.substring(0, 58) + '…' : origUrl;
+
+    return `
+      <tr data-code="${escAttr(code)}" data-url="${escAttr(origUrl.toLowerCase())}">
+        <td class="td-code">
+          <a href="${escAttr(shortUrl)}" target="_blank" title="${escAttr(shortUrl)}">${escHtml(code)}</a>
+        </td>
+        <td class="td-short-url">
+          <a href="${escAttr(shortUrl)}" target="_blank" title="${escAttr(shortUrl)}">${escHtml(shortUrl)}</a>
+        </td>
+        <td class="td-url">
+          <span title="${escAttr(origUrl)}">${escHtml(displayUrl)}</span>
+        </td>
+        <td>
+          <div class="td-actions">
+            <button class="btn btn-icon" onclick="copyCode('${escAttr(code)}')" title="复制短链">📋</button>
+            <button class="btn btn-danger" onclick="deleteLink('${escAttr(code)}', this)" title="删除">删除</button>
+          </div>
+        </td>
+      </tr>`;
+  }).join('');
+}
+
+// ============================================================
+//  前端搜索过滤（仅过滤当前页数据）
+// ============================================================
+function filterTable() {
+  const q = document.getElementById('search-input').value.trim().toLowerCase();
+  if (!q) {
+    renderTable(allLinks);
+    return;
+  }
+  const filtered = allLinks.filter(item =>
+    item.code.toLowerCase().includes(q) ||
+    item.url.toLowerCase().includes(q)
+  );
+  renderTable(filtered);
+}
+
+// ============================================================
+//  删除短链
+// ============================================================
+async function deleteLink(code, btn) {
+  if (!confirm(`确定要删除短码 "${code}" 吗？此操作不可撤销。`)) return;
+
+  btn.disabled = true;
+  btn.textContent = '删除中...';
+
+  try {
+    const data = await apiFetch(`/api/links/${encodeURIComponent(code)}`, {
+      method: 'DELETE',
+    });
+
+    if (data.success) {
+      showToast('短码 ' + code + ' 已删除', 'success');
+      // 删除后重新加载当前页（如果当页已空且不是第一页，跳到上一页）
+      const newTotal = totalCount - 1;
+      const maxPage  = Math.max(1, Math.ceil(newTotal / PAGE_SIZE));
+      if (curPage > maxPage) curPage = maxPage;
+      loadLinks(curPage);
+    } else {
+      showToast(data.message || '删除失败', 'error');
+      btn.disabled = false;
+      btn.textContent = '删除';
+    }
+  } catch (e) {
+    showToast('网络请求失败', 'error');
+    btn.disabled = false;
+    btn.textContent = '删除';
+  }
+}
+
+// ============================================================
+//  Toast 通知
+// ============================================================
+function showToast(message, type = 'info') {
+  const container = document.getElementById('toast-container');
+  const toast = document.createElement('div');
+  toast.className = `toast ${type}`;
+
+  const icon = type === 'success' ? '✅' : type === 'error' ? '❌' : 'ℹ️';
+  toast.innerHTML = `<span>${icon}</span><span>${escHtml(message)}</span>`;
+
+  container.appendChild(toast);
+
+  // 3 秒后淡出并移除
+  setTimeout(() => {
+    toast.classList.add('removing');
+    toast.addEventListener('animationend', () => toast.remove());
+  }, 3000);
+}
+
+// ============================================================
+//  安全工具函数（防 XSS）
+// ============================================================
+function escHtml(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function escAttr(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+// ============================================================
+//  初始化
+// ============================================================
+window.addEventListener('DOMContentLoaded', async () => {
+  // 先拉取后端配置，获取跳转服务基础 URL
+  try {
+    const cfg = await apiFetch('/api/config');
+    if (cfg.success && cfg.redirect_base_url) {
+      redirectBase = cfg.redirect_base_url;
+    }
+  } catch (_) {
+    // 拉取失败时降级：用当前页面主机 + 默认端口
+    redirectBase = `http://${location.hostname}:8000`;
+  }
+  loadLinks();
+});
+</script>
+</body>
+</html>

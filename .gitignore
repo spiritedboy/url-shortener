@@ -1,0 +1,20 @@
+# 构建目录
+build/
+
+# 编译产物
+*.o
+*.a
+*.so
+
+# 日志文件
+*.log
+
+# IDE / 编辑器
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# macOS
+.DS_Store
