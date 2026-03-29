@@ -169,15 +169,20 @@ int main(int argc, char* argv[]) {
     // ---- 初始化短链转换器 ----
     UrlShortener::instance().init();
 
-    // ---- 启动服务器 ----
+    // ---- 启动服务器（非阻塞，两个 EventLoop 均在独立线程中运行）----
     try {
         Server server;
         LOG_INFO("服务器初始化完成，开始监听");
 
-        // Server::start() 在内部启动两个 EventLoop
-        // Redirect EventLoop 在独立线程，Admin EventLoop 阻塞主线程
         server.start();
 
+        // 主线程等待退出信号（SIGTERM / SIGINT）
+        while (g_running) {
+            sleep(1);
+        }
+
+        LOG_INFO("收到退出信号，正在停止服务器...");
+        server.stop();
         LOG_INFO("服务器正常退出");
 
     } catch (const std::exception& e) {

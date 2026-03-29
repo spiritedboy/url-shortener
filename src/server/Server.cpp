@@ -83,20 +83,27 @@ void* Server::loopThreadEntry(void* arg) {
     return nullptr;
 }
 
-// 启动服务器（阻塞直到 stop()）
+// 启动服务器（非阻塞：两个 EventLoop 均在独立线程中运行）
 void Server::start() {
     LOG_INFO("服务器启动中...");
 
     // 在独立线程中运行 Redirect EventLoop
-    LoopArg* arg = new LoopArg{ redirectLoop_.get() };
-    if (pthread_create(&redirectThread_, nullptr, loopThreadEntry, arg) != 0) {
-        delete arg;
+    LoopArg* arg1 = new LoopArg{ redirectLoop_.get() };
+    if (pthread_create(&redirectThread_, nullptr, loopThreadEntry, arg1) != 0) {
+        delete arg1;
         throw std::runtime_error("无法创建 Redirect EventLoop 线程");
     }
     redirectThreadCreated_ = true;
 
-    // 在当前线程（主线程）中运行 Admin EventLoop（阻塞）
-    adminLoop_->run();
+    // 在独立线程中运行 Admin EventLoop
+    LoopArg* arg2 = new LoopArg{ adminLoop_.get() };
+    if (pthread_create(&adminThread_, nullptr, loopThreadEntry, arg2) != 0) {
+        delete arg2;
+        throw std::runtime_error("无法创建 Admin EventLoop 线程");
+    }
+    adminThreadCreated_ = true;
+
+    LOG_INFO("服务器已启动（双端口运行中）");
 }
 
 // 停止服务器
@@ -106,7 +113,11 @@ void Server::stop() {
     if (adminLoop_)    adminLoop_->stop();
     if (redirectLoop_) redirectLoop_->stop();
 
-    // 等待 Redirect 线程退出
+    // 等待两个 EventLoop 线程退出
+    if (adminThreadCreated_) {
+        pthread_join(adminThread_, nullptr);
+        adminThreadCreated_ = false;
+    }
     if (redirectThreadCreated_) {
         pthread_join(redirectThread_, nullptr);
         redirectThreadCreated_ = false;

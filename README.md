@@ -368,10 +368,9 @@ Description=URL Shortener Service
 After=network.target mysql.service redis.service
 
 [Service]
-Type=forking
+Type=simple
 WorkingDirectory=/opt/url-shortener
-ExecStart=/opt/url-shortener/url_shortener -c /opt/url-shortener/config.ini
-ExecStop=/bin/kill -TERM $MAINPID
+ExecStart=/opt/url-shortener/url_shortener -c /opt/url-shortener/config.ini --no-daemon
 Restart=on-failure
 RestartSec=5
 

@@ -18,7 +18,7 @@ public:
     Server();
     ~Server();
 
-    // 初始化并启动服务器（阻塞，直到 stop() 被调用）
+    // 启动服务器（非阻塞：两个 EventLoop 均在独立线程中运行）
     void start();
 
     // 停止服务器（线程安全）
@@ -43,4 +43,6 @@ private:
 
     pthread_t  redirectThread_{};   // 运行 redirectLoop_ 的线程
     bool       redirectThreadCreated_ = false;
+    pthread_t  adminThread_{};      // 运行 adminLoop_ 的线程
+    bool       adminThreadCreated_ = false;
 };
