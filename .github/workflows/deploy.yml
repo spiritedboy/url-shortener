@@ -22,10 +22,13 @@ jobs:
           script: |
             set -e
             cd /home/url-shortener
+            sudo /home/opt/stop.sh || true
             git pull origin master
             cd build
             cmake --build . -- -j$(nproc)
-            sudo systemctl stop url-shortener.service || true
             sudo cp -rT /home/url-shortener/frontend /home/opt/frontend
             sudo cp bin/url_shortener /home/opt/
-            sudo systemctl start url-shortener.service
+            sudo cp /home/url-shortener/start.sh /home/opt/
+            sudo cp /home/url-shortener/stop.sh /home/opt/
+            sudo chmod +x /home/opt/start.sh /home/opt/stop.sh
+            sudo /home/opt/start.sh

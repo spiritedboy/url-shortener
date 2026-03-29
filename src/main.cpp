@@ -129,17 +129,26 @@ int main(int argc, char* argv[]) {
     // ---- 守护进程化 ----
     if (runAsDaemon) {
         LOG_INFO("以守护进程模式启动...");
-        // fork() 后子进程中只有调用线程存在，日志后台写线程会消失
-        // 必须在 daemonize 之前停止日志线程，之后重新初始化
         Logger::instance().stop();
         daemonize();
-        // daemon 子进程中重新初始化日志（启动新的后台写线程）
         if (!Logger::instance().init(logFile, level)) {
             // 日志初始化失败仅警告，程序继续运行
         }
         LOG_INFO("守护进程化完成，PID=" + std::to_string(getpid()));
     } else {
         LOG_INFO("以前台模式启动（调试），PID=" + std::to_string(getpid()));
+    }
+
+    // ---- 写入 PID 文件 ----
+    std::string pidFile = Config::instance().get("server", "pid_file", "./url-shortener.pid");
+    {
+        FILE* pf = fopen(pidFile.c_str(), "w");
+        if (pf) {
+            fprintf(pf, "%d\n", getpid());
+            fclose(pf);
+        } else {
+            LOG_WARN("无法写入 PID 文件: " + pidFile);
+        }
     }
 
     // ---- 注册信号处理器 ----
@@ -194,6 +203,9 @@ int main(int argc, char* argv[]) {
     MySQLPool::instance().destroy();
     RedisPool::instance().destroy();
     Logger::instance().stop();
+
+    // ---- 删除 PID 文件 ----
+    remove(pidFile.c_str());
 
     return EXIT_SUCCESS;
 }
