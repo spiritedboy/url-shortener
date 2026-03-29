@@ -13,21 +13,19 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up SSH key
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.REMOTE_SSH_KEY }}" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan ${{ secrets.REMOTE_HOST }} >> ~/.ssh/known_hosts
-
       - name: Deploy and restart service via SSH
-        run: |
-          ssh -i ~/.ssh/id_rsa ${{ secrets.REMOTE_USER }}@${{ secrets.REMOTE_HOST }} \
-            "cd /home/url-shortener && \
-             git pull origin master && \
-             cd build && \
-             cmake --build . -- -j$(nproc) && \
-             sudo systemctl stop url-shortener.service || true && \
-             sudo cp -rT /home/url-shortener/frontend /home/opt/frontend && \
-             sudo cp bin/url_shortener /home/opt/ && \
-             sudo systemctl start url-shortener.service"
+        uses: appleboy/ssh-action@v1.2.2
+        with:
+          host: ${{ secrets.REMOTE_HOST }}
+          username: ${{ secrets.REMOTE_USER }}
+          key: ${{ secrets.REMOTE_SSH_KEY }}
+          script: |
+            set -e
+            cd /home/url-shortener
+            git pull origin master
+            cd build
+            cmake --build . -- -j$(nproc)
+            sudo systemctl stop url-shortener.service || true
+            sudo cp -rT /home/url-shortener/frontend /home/opt/frontend
+            sudo cp bin/url_shortener /home/opt/
+            sudo systemctl start url-shortener.service
