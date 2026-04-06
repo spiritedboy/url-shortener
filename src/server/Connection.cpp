@@ -4,6 +4,7 @@
 #include <unistd.h>
 #include <cerrno>
 #include <cstring>
+#include <sched.h>
 
 Connection::Connection(int fd, EventLoop* loop, bool isAdmin)
     : fd_(fd), loop_(loop), isAdmin_(isAdmin) {
@@ -54,16 +55,23 @@ bool Connection::readAll() {
 
 // 发送写缓冲区的全部数据
 bool Connection::sendAll() {
+    int retryCount = 0;
     while (!writeBuf_.empty()) {
         ssize_t n = ::write(fd_, writeBuf_.data(), writeBuf_.size());
 
         if (n > 0) {
             // 移除已发送的部分
             writeBuf_.erase(0, static_cast<size_t>(n));
+            retryCount = 0;
         } else if (n < 0) {
             if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                // 发送缓冲区已满，等待 EPOLLOUT 事件（由调用方处理）
-                return true;  // 还有数据未发送，但不是错误
+                // 发送缓冲区已满，短暂让出 CPU 后重试
+                if (++retryCount > 1000) {
+                    LOG_WARN("write EAGAIN 重试次数过多 fd=" + std::to_string(fd_));
+                    return false;
+                }
+                sched_yield();
+                continue;
             }
             if (errno == EINTR) {
                 continue;   // 被中断，重试
