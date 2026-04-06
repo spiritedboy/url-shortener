@@ -122,12 +122,32 @@ bool MySQLPool::ensureSchema(MYSQL* conn) {
 }
 
 // 借出一个连接（若无可用连接则阻塞等待）
+// 借出前使用 mysql_ping 检测连接存活，失效则自动重建
 MYSQL* MySQLPool::acquire() {
     std::unique_lock<std::mutex> lock(mutex_);
     cond_.wait(lock, [this] { return !available_.empty(); });
 
     MYSQL* conn = available_.front();
     available_.pop();
+    lock.unlock();
+
+    // 检测连接是否存活
+    if (mysql_ping(conn) != 0) {
+        LOG_WARN("MySQL 连接已断开，正在重建: " + std::string(mysql_error(conn)));
+        MYSQL* oldConn = conn;
+        mysql_close(conn);
+        conn = createConnection();
+        if (conn) {
+            mysql_select_db(conn, database_.c_str());
+        } else {
+            LOG_ERROR("MySQL 连接重建失败");
+        }
+        // 更新 allConns_ 中的旧指针
+        std::lock_guard<std::mutex> lock2(mutex_);
+        for (auto& c : allConns_) {
+            if (c == oldConn) { c = conn; break; }
+        }
+    }
     return conn;
 }
 
