@@ -10,6 +10,7 @@
 #include <queue>
 #include <mutex>
 #include <condition_variable>
+#include <stdexcept>
 #include <hiredis/hiredis.h>
 
 class RedisPool {
@@ -28,8 +29,10 @@ public:
     // -------- RAII 连接守卫 --------
     class Guard {
     public:
-        explicit Guard(RedisPool& pool) : pool_(pool), ctx_(pool.acquire()) {}
-        ~Guard() { pool_.release(ctx_); }
+        explicit Guard(RedisPool& pool) : pool_(pool), ctx_(pool.acquire()) {
+            if (!ctx_) throw std::runtime_error("Redis 连接不可用");
+        }
+        ~Guard() { if (ctx_) pool_.release(ctx_); }
 
         redisContext* get()        const { return ctx_; }
         redisContext* operator->() const { return ctx_; }

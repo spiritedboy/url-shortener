@@ -10,6 +10,7 @@
 #include <queue>
 #include <mutex>
 #include <condition_variable>
+#include <stdexcept>
 #include <mysql/mysql.h>
 
 class MySQLPool {
@@ -29,8 +30,10 @@ public:
     // 构造时借出连接，析构时归还
     class Guard {
     public:
-        explicit Guard(MySQLPool& pool) : pool_(pool), conn_(pool.acquire()) {}
-        ~Guard() { pool_.release(conn_); }
+        explicit Guard(MySQLPool& pool) : pool_(pool), conn_(pool.acquire()) {
+            if (!conn_) throw std::runtime_error("MySQL 连接不可用");
+        }
+        ~Guard() { if (conn_) pool_.release(conn_); }
 
         MYSQL* get()        const { return conn_; }
         MYSQL* operator->() const { return conn_; }
