@@ -8,10 +8,8 @@
 #include <string>
 #include <vector>
 #include <queue>
-#include <unordered_map>
 #include <mutex>
 #include <condition_variable>
-#include <ctime>
 #include <mysql/mysql.h>
 
 class MySQLPool {
@@ -72,11 +70,10 @@ private:
     int         poolSize_ = 8;
 
     // 连接池
-    std::vector<MYSQL*>                      allConns_;   // 所有连接（用于析构时统一销毁）
-    std::queue<MYSQL*>                       available_;  // 当前可用连接
-    std::unordered_map<MYSQL*, time_t>       lastUsed_;   // 连接最后归还时间
-    std::mutex                               mutex_;
-    std::condition_variable                  cond_;
+    std::vector<MYSQL*>     allConns_;   // 所有连接（用于析构时统一销毁）
+    std::queue<MYSQL*>      available_;  // 当前可用连接
+    std::mutex              mutex_;
+    std::condition_variable cond_;
 
     static const int IDLE_TIMEOUT = 600; // 空闲超过此秒数才做 mysql_ping 检测
     bool initialized_ = false;

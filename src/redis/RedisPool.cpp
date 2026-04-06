@@ -2,6 +2,7 @@
 #include "config/Config.h"
 #include "logger/Logger.h"
 #include <cstring>
+#include <cstdlib>
 
 RedisPool& RedisPool::instance() {
     static RedisPool inst;
@@ -30,7 +31,6 @@ bool RedisPool::init() {
         }
         allCtxs_.push_back(ctx);
         available_.push(ctx);
-        lastUsed_[ctx] = time(nullptr);
     }
 
     initialized_ = true;
@@ -77,42 +77,36 @@ redisContext* RedisPool::createConnection() {
 }
 
 // 借出一个连接（阻塞等待）
-// 空闲超过 IDLE_TIMEOUT 才做 PING 检测，失败则重连
+// 每次借出前发送 PING 检测存活，失败则自动重建
 redisContext* RedisPool::acquire() {
     std::unique_lock<std::mutex> lock(mutex_);
     cond_.wait(lock, [this] { return !available_.empty(); });
 
     redisContext* ctx = available_.front();
     available_.pop();
-
-    time_t lastTime = lastUsed_.count(ctx) ? lastUsed_[ctx] : 0;
     lock.unlock();
 
-    // 只对空闲超过阈值的连接做健康检查
-    if (time(nullptr) - lastTime > IDLE_TIMEOUT) {
-        bool alive = false;
-        redisReply* reply = static_cast<redisReply*>(redisCommand(ctx, "PING"));
-        if (reply && reply->type == REDIS_REPLY_STATUS &&
-            std::strcmp(reply->str, "PONG") == 0) {
-            alive = true;
-        }
-        if (reply) freeReplyObject(reply);
+    // 检测连接是否存活
+    bool alive = false;
+    redisReply* reply = static_cast<redisReply*>(redisCommand(ctx, "PING"));
+    if (reply && reply->type == REDIS_REPLY_STATUS &&
+        std::strcmp(reply->str, "PONG") == 0) {
+        alive = true;
+    }
+    if (reply) freeReplyObject(reply);
 
-        if (!alive) {
-            LOG_WARN("Redis 连接已断开，正在重建");
-            redisContext* oldCtx = ctx;
-            redisFree(ctx);
-            ctx = createConnection();
-            if (!ctx) {
-                LOG_ERROR("Redis 连接重建失败");
-            }
-            // 更新 allCtxs_ 和 lastUsed_ 中的旧指针
-            std::lock_guard<std::mutex> lock2(mutex_);
-            for (auto& c : allCtxs_) {
-                if (c == oldCtx) { c = ctx; break; }
-            }
-            lastUsed_.erase(oldCtx);
-            if (ctx) lastUsed_[ctx] = time(nullptr);
+    if (!alive) {
+        LOG_WARN("Redis 连接已断开，正在重建");
+        redisContext* oldCtx = ctx;
+        redisFree(ctx);
+        ctx = createConnection();
+        if (!ctx) {
+            LOG_ERROR("Redis 连接重建失败");
+        }
+        // 更新 allCtxs_ 中的旧指针
+        std::lock_guard<std::mutex> lock2(mutex_);
+        for (auto& c : allCtxs_) {
+            if (c == oldCtx) { c = ctx; break; }
         }
     }
 
@@ -123,7 +117,6 @@ redisContext* RedisPool::acquire() {
 void RedisPool::release(redisContext* ctx) {
     {
         std::lock_guard<std::mutex> lock(mutex_);
-        lastUsed_[ctx] = time(nullptr);
         available_.push(ctx);
     }
     cond_.notify_one();
@@ -136,7 +129,6 @@ void RedisPool::destroy() {
         redisFree(ctx);
     }
     allCtxs_.clear();
-    lastUsed_.clear();
     while (!available_.empty()) available_.pop();
     initialized_ = false;
 }

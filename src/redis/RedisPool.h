@@ -8,10 +8,8 @@
 #include <string>
 #include <vector>
 #include <queue>
-#include <unordered_map>
 #include <mutex>
 #include <condition_variable>
-#include <ctime>
 #include <hiredis/hiredis.h>
 
 class RedisPool {
@@ -66,12 +64,10 @@ private:
     int         poolSize_ = 8;
 
     // 连接池
-    std::vector<redisContext*>                   allCtxs_;    // 所有连接（用于析构销毁）
-    std::queue<redisContext*>                    available_;  // 可用连接
-    std::unordered_map<redisContext*, time_t>    lastUsed_;   // 连接最后归还时间
-    std::mutex                                   mutex_;
-    std::condition_variable                      cond_;
+    std::vector<redisContext*> allCtxs_;    // 所有连接（用于析构销毁）
+    std::queue<redisContext*>  available_;  // 可用连接
+    std::mutex                 mutex_;
+    std::condition_variable    cond_;
 
-    static const int IDLE_TIMEOUT = 600; // 空闲超过此秒数才做 PING 检测
     bool initialized_ = false;
 };
