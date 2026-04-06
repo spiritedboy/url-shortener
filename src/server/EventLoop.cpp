@@ -60,16 +60,35 @@ bool EventLoop::setNonBlocking(int fd) {
 }
 
 // 将 fd 加入 epoll，使用 ET + ONESHOT 模式
-void EventLoop::addFd(int fd, uint32_t events) {
+bool EventLoop::addFd(int fd, uint32_t events) {
     struct epoll_event ev{};
     ev.events  = events | EPOLLET | EPOLLONESHOT;
     ev.data.fd = fd;
-    epoll_ctl(epollFd_, EPOLL_CTL_ADD, fd, &ev);
+    if (epoll_ctl(epollFd_, EPOLL_CTL_ADD, fd, &ev) < 0) {
+        LOG_ERROR(std::string("epoll_ctl(ADD) 失败 fd=") + std::to_string(fd) +
+                  " errno=" + strerror(errno));
+        return false;
+    }
+    return true;
 }
 
 // 循环 accept 所有等待的连接（ET 模式要求：不能只 accept 一个）
 void EventLoop::acceptAll() {
     while (true) {
+        // 检查连接数上限
+        {
+            std::lock_guard<std::mutex> lock(connMutex_);
+            if (static_cast<int>(connections_.size()) >= MAX_CONNECTIONS) {
+                LOG_WARN("连接数已达上限 " + std::to_string(MAX_CONNECTIONS) + "，拒绝新连接");
+                // 把accept出来的立即关闭
+                struct sockaddr_in tmpAddr{};
+                socklen_t tmpLen = sizeof(tmpAddr);
+                int tmpFd = accept(serverFd_, reinterpret_cast<struct sockaddr*>(&tmpAddr), &tmpLen);
+                if (tmpFd >= 0) close(tmpFd);
+                break;
+            }
+        }
+
         struct sockaddr_in clientAddr{};
         socklen_t addrLen = sizeof(clientAddr);
 
@@ -100,7 +119,12 @@ void EventLoop::acceptAll() {
         }
 
         // 将新 fd 加入 epoll（ET + ONESHOT，监听可读事件）
-        addFd(connFd, EPOLLIN);
+        if (!addFd(connFd, EPOLLIN)) {
+            std::lock_guard<std::mutex> lock(connMutex_);
+            connections_.erase(connFd);
+            close(connFd);
+            continue;
+        }
 
         char ipStr[INET_ADDRSTRLEN];
         inet_ntop(AF_INET, &clientAddr.sin_addr, ipStr, sizeof(ipStr));

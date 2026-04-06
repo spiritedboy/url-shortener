@@ -49,6 +49,8 @@ public:
 private:
     // 单次 epoll_wait 处理的最大事件数
     static const int MAX_EVENTS = 1024;
+    // 最大并发连接数
+    static const int MAX_CONNECTIONS = 10000;
 
     int            epollFd_;   // epoll 实例描述符
     int            serverFd_;  // 监听 socket
@@ -69,5 +71,5 @@ private:
     void acceptAll();
 
     // 将 fd 加入 epoll 监听（ET + ONESHOT）
-    void addFd(int fd, uint32_t events);
+    bool addFd(int fd, uint32_t events);
 };
