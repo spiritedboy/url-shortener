@@ -77,6 +77,7 @@ bool HttpParser::parse(const std::string& buf, HttpRequest& req) {
 
     // ---- 解析请求头 ----
     req.headers.clear();
+    static const size_t MAX_HEADERS = 100;
     while (pos < buf.size()) {
         lineEnd = buf.find("\r\n", pos);
         if (lineEnd == std::string::npos) return false;  // 头部还未接收完
@@ -85,6 +86,10 @@ bool HttpParser::parse(const std::string& buf, HttpRequest& req) {
             // 空行：头部结束
             pos += 2;
             break;
+        }
+
+        if (req.headers.size() >= MAX_HEADERS) {
+            throw std::runtime_error("请求头数量超过上限: " + std::to_string(MAX_HEADERS));
         }
 
         std::string header = buf.substr(pos, lineEnd - pos);
