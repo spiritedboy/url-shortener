@@ -60,6 +60,11 @@ std::string UrlShortener::shorten(const std::string& longUrl) {
         return "";
     }
 
+    if (longUrl.size() > 8192) {
+        LOG_WARN("URL 超过 8192 字节上限，拒绝: 长度=" + std::to_string(longUrl.size()));
+        return "";
+    }
+
     // 对 URL 进行基本合法性检查（必须以 http:// 或 https:// 开头）
     if (longUrl.substr(0, 7) != "http://" && longUrl.substr(0, 8) != "https://") {
         LOG_WARN("URL 格式不合法（缺少协议头）: " + longUrl);
