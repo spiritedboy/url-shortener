@@ -147,7 +147,8 @@ int main(int argc, char* argv[]) {
             fprintf(pf, "%d\n", getpid());
             fclose(pf);
         } else {
-            LOG_WARN("无法写入 PID 文件: " + pidFile);
+            LOG_ERROR("无法写入 PID 文件: " + pidFile + "，程序退出");
+            return EXIT_FAILURE;
         }
     }
 
