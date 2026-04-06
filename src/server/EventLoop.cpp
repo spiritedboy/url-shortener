@@ -204,7 +204,11 @@ void EventLoop::rearmConnection(int fd) {
     ev.events  = EPOLLIN | EPOLLET | EPOLLONESHOT;
     ev.data.fd = fd;
     // epoll_ctl 是线程安全的，可从工作线程调用
-    epoll_ctl(epollFd_, EPOLL_CTL_MOD, fd, &ev);
+    if (epoll_ctl(epollFd_, EPOLL_CTL_MOD, fd, &ev) < 0) {
+        LOG_WARN(std::string("epoll_ctl(MOD) 失败 fd=") + std::to_string(fd) +
+                 " errno=" + strerror(errno));
+        closeConnection(fd);
+    }
 }
 
 // 关闭并移除连接
