@@ -228,7 +228,7 @@ std::string CacheManager::redisGet(const std::string& code) {
         redisContext* ctx = guard.get();
 
         redisReply* reply = static_cast<redisReply*>(
-            redisCommand(ctx, "GET url:%s", code.c_str()));
+            redisCommand(ctx, "GET url:%b", code.c_str(), code.size()));
 
         if (!reply) {
             LOG_WARN("Redis GET 无响应（连接可能断开）");
@@ -259,12 +259,16 @@ void CacheManager::redisSet(const std::string& code, const std::string& url, int
         if (effectiveTTL > 0) {
             // 带过期时间写入
             reply = static_cast<redisReply*>(
-                redisCommand(ctx, "SETEX url:%s %d %s",
-                             code.c_str(), effectiveTTL, url.c_str()));
+                redisCommand(ctx, "SETEX url:%b %d %b",
+                             code.c_str(), code.size(),
+                             effectiveTTL,
+                             url.c_str(), url.size()));
         } else {
             // 永不过期
             reply = static_cast<redisReply*>(
-                redisCommand(ctx, "SET url:%s %s", code.c_str(), url.c_str()));
+                redisCommand(ctx, "SET url:%b %b",
+                             code.c_str(), code.size(),
+                             url.c_str(), url.size()));
         }
 
         if (reply) freeReplyObject(reply);
@@ -280,7 +284,7 @@ void CacheManager::redisDel(const std::string& code) {
         redisContext* ctx = guard.get();
 
         redisReply* reply = static_cast<redisReply*>(
-            redisCommand(ctx, "DEL url:%s", code.c_str()));
+            redisCommand(ctx, "DEL url:%b", code.c_str(), code.size()));
         if (reply) freeReplyObject(reply);
 
     } catch (...) {
