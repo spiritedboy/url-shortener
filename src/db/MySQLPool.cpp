@@ -34,6 +34,7 @@ bool MySQLPool::init() {
         }
         allConns_.push_back(conn);
         available_.push(conn);
+        lastUsed_[conn] = time(nullptr);
     }
 
     // 使用第一个连接确保数据库和表存在
@@ -122,32 +123,39 @@ bool MySQLPool::ensureSchema(MYSQL* conn) {
 }
 
 // 借出一个连接（若无可用连接则阻塞等待）
-// 借出前使用 mysql_ping 检测连接存活，失效则自动重建
+// 空闲超过 IDLE_TIMEOUT 才做 mysql_ping 检测，失效则自动重建
 MYSQL* MySQLPool::acquire() {
     std::unique_lock<std::mutex> lock(mutex_);
     cond_.wait(lock, [this] { return !available_.empty(); });
 
     MYSQL* conn = available_.front();
     available_.pop();
+
+    time_t lastTime = lastUsed_.count(conn) ? lastUsed_[conn] : 0;
     lock.unlock();
 
-    // 检测连接是否存活
-    if (mysql_ping(conn) != 0) {
-        LOG_WARN("MySQL 连接已断开，正在重建: " + std::string(mysql_error(conn)));
-        MYSQL* oldConn = conn;
-        mysql_close(conn);
-        conn = createConnection();
-        if (conn) {
-            mysql_select_db(conn, database_.c_str());
-        } else {
-            LOG_ERROR("MySQL 连接重建失败");
-        }
-        // 更新 allConns_ 中的旧指针
-        std::lock_guard<std::mutex> lock2(mutex_);
-        for (auto& c : allConns_) {
-            if (c == oldConn) { c = conn; break; }
+    // 只对空闲超过阈值的连接做健康检查
+    if (time(nullptr) - lastTime > IDLE_TIMEOUT) {
+        if (mysql_ping(conn) != 0) {
+            LOG_WARN("连接已断开，正在重建: " + std::string(mysql_error(conn)));
+            MYSQL* oldConn = conn;
+            mysql_close(conn);
+            conn = createConnection();
+            if (conn) {
+                mysql_select_db(conn, database_.c_str());
+            } else {
+                LOG_ERROR("MySQL 连接重建失败");
+            }
+            // 更新 allConns_ 和 lastUsed_ 中的旧指针
+            std::lock_guard<std::mutex> lock2(mutex_);
+            for (auto& c : allConns_) {
+                if (c == oldConn) { c = conn; break; }
+            }
+            lastUsed_.erase(oldConn);
+            if (conn) lastUsed_[conn] = time(nullptr);
         }
     }
+
     return conn;
 }
 
@@ -155,6 +163,7 @@ MYSQL* MySQLPool::acquire() {
 void MySQLPool::release(MYSQL* conn) {
     {
         std::lock_guard<std::mutex> lock(mutex_);
+        lastUsed_[conn] = time(nullptr);
         available_.push(conn);
     }
     cond_.notify_one();
@@ -167,6 +176,7 @@ void MySQLPool::destroy() {
         mysql_close(conn);
     }
     allConns_.clear();
+    lastUsed_.clear();
     while (!available_.empty()) available_.pop();
     initialized_ = false;
 }
