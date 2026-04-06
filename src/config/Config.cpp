@@ -1,4 +1,5 @@
 #include "Config.h"
+#include "logger/Logger.h"
 #include <fstream>
 #include <sstream>
 #include <algorithm>
@@ -76,6 +77,7 @@ int Config::getInt(const std::string& section, const std::string& key, int defau
     try {
         return std::stoi(val);
     } catch (...) {
+        LOG_WARN("配置项 [" + section + "] " + key + " 值非法: \"" + val + "\"，使用默认值 " + std::to_string(defaultVal));
         return defaultVal;
     }
 }
