@@ -6,6 +6,7 @@
 #include "shortener/UrlShortener.h"
 #include "http/HttpParser.h"
 #include "http/HttpResponse.h"
+#include "utils/Base62.h"
 #include <fstream>
 #include <sstream>
 #include <vector>
@@ -87,7 +88,11 @@ void AdminServer::handleConnection(std::shared_ptr<Connection> conn) {
                req.path.substr(0, 11) == "/api/links/" &&
                req.method == "DELETE") {
         std::string code = req.path.substr(11);
-        resp = handleDeleteLink(code);
+        if (!Base62::isValid(code)) {
+            resp = HttpResponse::badRequest("短码格式不合法");
+        } else {
+            resp = handleDeleteLink(code);
+        }
 
     } else if (req.path == "/api/links" && req.method == "DELETE") {
         // 路径参数在 query string 中的 fallback（兼容某些前端）
