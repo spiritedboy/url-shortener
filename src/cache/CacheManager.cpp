@@ -7,6 +7,10 @@
 #include <mysql/mysql.h>
 #include <sstream>
 
+// 空值哨兵：标记短码不存在，防止缓存穿透
+static const std::string EMPTY_SENTINEL = "__NULL__";
+static const int EMPTY_TTL = 120;  // 空值缓存 TTL（秒）
+
 CacheManager& CacheManager::instance() {
     static CacheManager inst;
     return inst;
@@ -40,6 +44,10 @@ std::string CacheManager::get(const std::string& code) {
     // L2：Redis
     url = redisGet(code);
     if (!url.empty()) {
+        if (url == EMPTY_SENTINEL) {
+            LOG_DEBUG("L2 空值命中（防穿透）: " + code);
+            return "";
+        }
         LOG_DEBUG("L2 命中: " + code);
         if (memCache_) memCache_->put(code, url);  // 回填 L1
         return url;
@@ -54,7 +62,9 @@ std::string CacheManager::get(const std::string& code) {
         return url;
     }
 
-    LOG_DEBUG("三级缓存未命中: " + code);
+    // 全部未命中，缓存空值到 Redis（防穿透，120s TTL）
+    LOG_DEBUG("三级缓存未命中，缓存空值: " + code);
+    redisSet(code, EMPTY_SENTINEL, EMPTY_TTL);
     return "";
 }
 
@@ -64,7 +74,8 @@ bool CacheManager::put(const std::string& code, const std::string& longUrl) {
     if (!mysqlInsert(code, longUrl)) {
         return false;
     }
-    // 写 Redis
+    // 先清除可能存在的空值哨兵，再写入真实值（使用正常 TTL）
+    redisDel(code);
     redisSet(code, longUrl);
     // 写内存
     if (memCache_) memCache_->put(code, longUrl);
@@ -237,17 +248,19 @@ std::string CacheManager::redisGet(const std::string& code) {
     }
 }
 
-void CacheManager::redisSet(const std::string& code, const std::string& url) {
+void CacheManager::redisSet(const std::string& code, const std::string& url, int ttl) {
     try {
         RedisPool::Guard guard(RedisPool::instance());
         redisContext* ctx = guard.get();
 
+        int effectiveTTL = (ttl >= 0) ? ttl : redisTTL_;
+
         redisReply* reply;
-        if (redisTTL_ > 0) {
+        if (effectiveTTL > 0) {
             // 带过期时间写入
             reply = static_cast<redisReply*>(
                 redisCommand(ctx, "SETEX url:%s %d %s",
-                             code.c_str(), redisTTL_, url.c_str()));
+                             code.c_str(), effectiveTTL, url.c_str()));
         } else {
             // 永不过期
             reply = static_cast<redisReply*>(

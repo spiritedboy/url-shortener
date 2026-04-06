@@ -62,7 +62,7 @@ private:
 
     // ---- L2 Redis 操作 ----
     std::string redisGet(const std::string& code);
-    void        redisSet(const std::string& code, const std::string& url);
+    void        redisSet(const std::string& code, const std::string& url, int ttl = -1);
     void        redisDel(const std::string& code);
 
     // ---- L3 MySQL 操作 ----
