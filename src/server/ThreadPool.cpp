@@ -7,14 +7,21 @@ ThreadPool::ThreadPool(int threadCount) {
     if (threadCount <= 0) threadCount = 1;
 
     running_ = true;
-    threads_.resize(static_cast<size_t>(threadCount));
 
     for (int i = 0; i < threadCount; ++i) {
+        pthread_t t;
         // 使用 pthread 创建工作线程（不使用 std::thread）
-        if (pthread_create(&threads_[i], nullptr, workerEntry, this) != 0) {
+        if (pthread_create(&t, nullptr, workerEntry, this) != 0) {
+            // 已创建的线程需要先停止
             running_ = false;
+            cond_.notify_all();
+            for (pthread_t& existing : threads_) {
+                pthread_join(existing, nullptr);
+            }
+            threads_.clear();
             throw std::runtime_error("线程池：pthread_create 失败");
         }
+        threads_.push_back(t);
     }
 
     LOG_INFO("线程池启动，工作线程数: " + std::to_string(threadCount));
