@@ -37,6 +37,10 @@ std::string CacheManager::get(const std::string& code) {
     // L1：内存 LRU
     std::string url;
     if (memCache_ && memCache_->get(code, url)) {
+        if (url == EMPTY_SENTINEL) {
+            LOG_DEBUG("L1 空值命中（防穿透）: " + code);
+            return "";
+        }
         LOG_DEBUG("L1 命中: " + code);
         return url;
     }
@@ -46,6 +50,7 @@ std::string CacheManager::get(const std::string& code) {
     if (!url.empty()) {
         if (url == EMPTY_SENTINEL) {
             LOG_DEBUG("L2 空值命中（防穿透）: " + code);
+            if (memCache_) memCache_->put(code, EMPTY_SENTINEL);  // 回填 L1 防穿透
             return "";
         }
         LOG_DEBUG("L2 命中: " + code);
@@ -62,9 +67,10 @@ std::string CacheManager::get(const std::string& code) {
         return url;
     }
 
-    // 全部未命中，缓存空值到 Redis（防穿透，120s TTL）
+    // 全部未命中，缓存空值到 Redis 和内存（防穿透）
     LOG_DEBUG("三级缓存未命中，缓存空值: " + code);
     redisSet(code, EMPTY_SENTINEL, EMPTY_TTL);
+    if (memCache_) memCache_->put(code, EMPTY_SENTINEL);  // L1 也防穿透
     return "";
 }
 
